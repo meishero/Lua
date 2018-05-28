@@ -2,6 +2,8 @@
 --1.module() 第一个参数就是模块名，如果不设置，缺省使用文件名。
 --2.第二个参数package.seeall,默认在定义了一个module()之后，前面定义的全局变量就都不可用了，包括print函数等，如果要让之前的全局变量可见，必须在定义module的时候加上参数package.seeall。 具体参考云风这篇文章
 --package.seeall(module)功能：为module设置一个元表，此元表的__index字段的值为全局环境_G。所以module可以访问全局环境.
+--默认情况下,module不提供外部访问.必须在调用它之前,为需要访问的外部函数或模块声明适当的局部变量.也可以通过继承来实现外部访问,只需在调用module时附加一个选项package.seeall.这个选项等价于如下代码:
+--setmetatable(M,{__index = _G})  
 --之所以不再推荐module("...", package.seeall)这种方式，官方给出了两个原因。
 --1.package.seeall这种方式破坏了模块的高内聚，原本引入oldmodule只想调用它的foo()函数，但是它却可以读写全局属性，例如oldmodule.os.
 --2.第二个缺陷是module函数的side-effect引起的，它会污染全局环境变量。module("hello.world")会创建一个hello的table，并将这个table注入全局环境变量中，这样使得不想引用它的模块也能调用hello模块的方法。
@@ -29,7 +31,7 @@ local function show()
 	print(_a .. _b);
 end
 
-mod =  --不注册进就是私有变量
+mod =  --不注册进就是私有变量 因为有local限定本文件域内使用？ 但具体原因可能只是被require时不像C++一样include进去 看一下 require 实现
 {
 	a = a;
 	b = b;
@@ -37,3 +39,20 @@ mod =  --不注册进就是私有变量
 	construct = construct;
 }
 return mod
+
+
+--require 函数的实现  
+function require(name)  
+    if not package.loaded[name] then  
+        local loader = findloader(name) //这一步演示在代码中以抽象函数findloader来表示  
+        if loader == nil then  
+            error("unable to load module" .. name)  
+        end  
+        package.loaded[name] = true  
+        local res = loader(name)  
+        if res ~= nil then  
+            package.loaded[name] = res  
+        end  
+    end  
+    return package.loaded[name]  
+end  
