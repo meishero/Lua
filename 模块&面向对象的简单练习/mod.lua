@@ -50,15 +50,118 @@ return mod
 --require 函数的实现  
 function require(name)  
     if not package.loaded[name] then  
-        local loader = findloader(name) //这一步演示在代码中以抽象函数findloader来表示  
+        local loader = findloader(name) //这一步演示在代码中以抽象函数findloader来表示  ---- 如果是so，就以loadlib方式加载文件，如果是lua文件，就以loadfile方式加载文件。
         if loader == nil then  
             error("unable to load module" .. name)  
         end  
-        package.loaded[name] = true  
-        local res = loader(name)  
+        package.loaded[name] = true  ---- 将模块标记为以加载，我们有时候会看到require返回true的现象，是由于被调用的模块，没有显示的执行package.loaded[modname] = M或者给出return M这样的返回值。
+        local res = loader(name)  ---- require会以name作为入参来执行该文件，如果有返回结果，就将返回结果保存在package.loaded[name]中，如果没有返回结果，就直接返回package.loaded[name]。如果我们在被调用的文件中直接写明return 1。则调用者的require的返回结果就是1。但是只要我们显示的在require文件中写明了_G[modname] = M，我们仍然可以在require之后，直接使用M作为名字来调用，是由于将M加入到了_G中。
         if res ~= nil then  
             package.loaded[name] = res  
         end  
     end  
     return package.loaded[name]  
 end  
+
+    2.require实现解析：
+
+    传参： require会将模块名作为参数传递给模块
+
+    返回值：如果一个模块没有返回值的话，require就会返回package.loaded[modulename]作为返回值。
+
+------------------------example---------------------
+
+举例：
+
+pa.lua:
+
+local modname = ...
+
+local M = {}
+
+
+
+_G[modname] = M
+
+package.loaded[modname] = M
+
+
+
+function M.print_mob()
+
+print(modname)
+
+end
+
+
+
+mob.lua:
+
+require "pa"
+
+pa.print_mob()
+
+
+
+执行结果：
+
+lua mob.lua
+
+pa
+
+------------------------------------------------------------
+
+分析：
+
+pa.lua中的modname接收的是require传递过来的参数，将其加入到全局环境变量_G中，相当于动态创建了一个modname的表（注意：表名的赋值实际上是引用，相当于C语言中的指针，即使是传参也会有相同的效果）。我们经常local m = require "mdname",实际上是将生成的表进行了重命名，但是本质上还是mdname这个表。
+
+pa.lua中的return M我们没有显示声明，由package.loaded[modulename]来代替，通过require实现机制可以看到，这时候返回值应该是true。
+
+三、环境
+
+lua用_G一张表保存了全局数据（变量，函数和表等）。
+
+如上分析，我们定义一个module，如果不加local，则它是一个注册在全局下的表。我们通过加local避免了它在污染全局表空间，只在本文件生效。如果我们没有将其注册到_G下，在其他文件是无法直接通过他的原始名字来访问的。不便利的地方，每个函数前面都要带M，M的下的函数相互访问也要带M头。
+
+解决方法：通过setfenv
+
+local modname = ...
+
+local M = {}
+
+
+
+_G[modname] = M
+
+package.loaded[modname] = M
+
+setfenv(1, M)
+
+后续的函数直接定义名字，因为他们的环境空间已经由_G改为了M。
+
+如果要使用全局函数，则可以本地额外增加一条local _G = _G或者setmetatable(M, {__index = G})。
+
+更好的方法是在setfenv之前将需要的函数都保存起来，local sqrt = math.sqrt
+
+
+
+四、module函数
+
+local M = {}
+
+_G[modname] = M
+
+package.loaded[modname] = M
+
+<set for external access: eg setmetatable(M, {__index = _G})>
+
+setfenv(1, M)
+
+等同于module(modname)。
+
+默认情况下，module不提供外部访问，如果要访问外部变量，两种方法：
+
+1.在声明module之前，local 变量 = 外部变量
+
+2.使用module(modname, package.seeall)， 等价于setmetatable(M, __index = _G)
+
