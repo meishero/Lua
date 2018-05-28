@@ -1,4 +1,10 @@
 --这种方式其实是新方式  旧的方式 往往在前面声明 module("oldmodule", package.seeall)  现在官方已经不推荐使用
+--module函数等同一下几句
+--local modname = “mymodule”     – 定义模块名  
+--local M = {}                               -- 定义用于返回的模块表  
+--_G[modname] = M                      -- 将模块表加入到全局变量中  
+--package.loaded[modname] = M    -- 将模块表加入到package.loaded中，防止多次加载  
+--setfenv(1,M)                      - 将模块表设置为函数的环境表，这使得模块中的所有操作是以在模块表中的，这样定义函数就直接定义在模块表中 
 --1.module() 第一个参数就是模块名，如果不设置，缺省使用文件名。
 --2.第二个参数package.seeall,默认在定义了一个module()之后，前面定义的全局变量就都不可用了，包括print函数等，如果要让之前的全局变量可见，必须在定义module的时候加上参数package.seeall。 具体参考云风这篇文章
 --package.seeall(module)功能：为module设置一个元表，此元表的__index字段的值为全局环境_G。所以module可以访问全局环境.
@@ -8,7 +14,7 @@
 --1.package.seeall这种方式破坏了模块的高内聚，原本引入oldmodule只想调用它的foo()函数，但是它却可以读写全局属性，例如oldmodule.os.
 --2.第二个缺陷是module函数的side-effect引起的，它会污染全局环境变量。module("hello.world")会创建一个hello的table，并将这个table注入全局环境变量中，这样使得不想引用它的模块也能调用hello模块的方法。
 
-mod ={};
+local mod ={}; --加local！不然不return也能访问。。。
 
 local _a;  -- private  local只是限定局部变量 如果是全局变量 require后是可以访问到的
 --Package拆开的意思，就是将所有Package中公开的名字放入_G表中。也就是让 Package.A() 变成_G.A
